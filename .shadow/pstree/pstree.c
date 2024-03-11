@@ -125,6 +125,8 @@ ProcessNode *read_process()
           {
           }
           else if (sscanf(line, "PPid:%d", &ppid))
+          {
+          }
         }
         fclose(file);
         ProcessNode *node = create_process_node(pid, ppid, name);
@@ -189,7 +191,8 @@ int main(int argc, char *argv[])
   ProcessNode *root = read_process();
   if (root == NULL)
   {
-    fprintf(stderr, "read_processes failed\n") return 1;
+    fprintf(stderr, "read_processes failed\n");
+    return 1;
   }
   print_process_tree(root, 0);
   release_process_tree(root);
