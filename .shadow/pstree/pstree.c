@@ -1,156 +1,195 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <dirent.h>
+#include <stdbool.h>
 #include <string.h>
-#include <getopt.h>
+#include <dirent.h>
+#include <stdlib.h>
+#include <unistd.h>
+#define MAX_PROCESSES 4096
 
-typedef struct {
-	char name[1024];
-	pid_t pid;
-	pid_t* children;
-	int child_num;
-} proc;
+struct ProcesssNode
+{
+  int pid;
+  int ppid;
+  char name[256];
+  struct ProcessNode *child;
+  struct ProcessNode *brother;
+};
+bool show_pids = false;
+bool numeric_sort = false;
 
-void PrintTree(proc* p, proc* procs, int depth, int pflag) {
-	if (depth > 0) {
-		printf("\n%*s |\n", (depth - 1) * 4, "");
-		printf("%*s", (depth - 1) * 4, "");
-		printf(" +--");
-	}
-	printf("%s", p->name);
-	if (pflag) {
-		printf("(%d)", p->pid);
-	}
-	for (int i = 0; i < p->child_num; ++i) {
-		proc* tmp = procs;
-		while (tmp != NULL) {
-			if (tmp->pid == p->children[i]) {
-				break;
-			}
-			++tmp;
-		}
-		PrintTree(tmp, procs, depth + 1, pflag);
-	}
+struct ProcessNode *create_process_node(int pid, int ppid, const char *name)
+{
+  struct ProcessNode *node = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
+  if (node != NULL)
+  {
+    node->pid = pid;
+    node->ppid = ppid;
+    strcpy(node->name, name, sizeof(node->name));
+    node->child = NULL;
+    node->brother = NULL;
+  }
+  return node;
 }
 
-int main(int argc, char *argv[]) {
-  // Get the arguments.
-  char c;
-  int nflag = 0, pflag = 0, vflag = 0;
-  struct option long_options[] = {
-	{"show-pids", no_argument, &pflag, 1},
-	{"numeric-sort", no_argument, &nflag, 1},
-	{"version", no_argument, &vflag, 1},
-	{0, 0, 0, 0}
-  };
+struct ProcessNode *find_process_node(struct ProcessNode *root, int pid)
+{
+  if (root == NULL)
+    return NULL;
+  if (root->pid == pid)
+    return root;
+  struct ProcessNode *result = find_process_node(root->child, pid);
+  if (result == NULL)
+  {
+    result = find_process_node(root->brother, pid);
+  }
+  return result;
+}
 
-    while ((c = getopt_long(argc, argv, "npV", long_options, NULL)) != -1) {
-        switch (c) {     
-            case 'n':
-	  	nflag = 1;
-	  	break;
-	    case 'p':
-	  	pflag = 1;
-		break;
-	    case 'V':
-		vflag = 1;
-		break;
-            case 0:
-                break;
-            case '?':
-                printf("Unknown option: %s\n", argv[optind-1]);
-                return 1;
-            default:
-                printf("Unexpected option: %c\n", c);
-                return 1;
+void add_child_process(struct ProcessNode *parent, struct ProcessNode *child)
+{
+  if (child != NULL && parent != NULL)
+  {
+    child->brother = parent->child;
+    parent->child = child;
+  }
+}
+
+void print_process_tree(struct ProcessNode *root, int depth)
+{
+  if (root == NULL)
+    return;
+  // 打印当前进程
+  for (int i = 0; i < depth : i++)
+  {
+    printf(" ");
+  }
+  if (show_pids)
+  {
+    printf("(%d)", root->pid);
+  }
+  printf("%s/n", root->name);
+  print_process_tree(root->child, depth + 1);
+  print_process_tree(root->brother, depth);
+}
+
+int compare_process(const void *a, const void *b)
+{
+  const struct ProcessNode *pa = *(const struct ProcessNode **)a;
+  const struct ProcessNode *pb = *(const struct ProcessNode **)b;
+  return pa->pid - pb->pid;
+}
+
+void release_process_tree(struct ProcessNode *root)
+{
+  if (root == NULL)
+    return;
+  release_process_tree(root->child);
+  release_process_tree(root->brother);
+  free(root);
+}
+
+struct ProcessNode *read_process()
+{
+  struct ProcessNode *root;
+  struct ProcessNode *processes[MAX_PROCESSES];
+  int count = 0;
+  DIR *dir = opendir("/proc");
+  if (dir == NULL)
+  {
+    perror("opendir");
+    return NULL;
+  }
+  struct dirent *entry;                  // 目录项结构体
+  while ((entry = readdir(dir)) != NULL) // 遍历目录
+  {
+    if (entry->d_type == DT_DIR)
+    {
+      int pid = atoi(entry->d_name);
+      if (pid > 0)
+      {
+        char path[256]; // 存储进程状态文件路径
+        sprintf(path, "/proc/%d/status", pid);
+        FILE *file = fopen(path, "r");
+        if (file == NULL)
+        {
+          perror("fopen");
+          continue;
         }
+        char line[256];
+        int ppid = 0;
+        char name[256];
+        while (fgets(line, sizeof(line), file) != NULL)
+        {
+          if (sscanf(line, "Name:%s", name) == 1)
+            else if (sscanf(line, "PPid:%d", ppid))
+        }
+        fclose(file);
+        struct ProcessNode *node = create_process_node(pid, ppid, name);
+        if (node == NULL)
+        {
+          fprintf(stderr, "create_process_node failed\n");
+          continue;
+        }
+        if (pid == 1)
+        {
+          root = node;
+        }
+        processes[count++] = node;
+      }
     }
-
-  if (vflag) {
-  	printf("A simple pstree by CY\n");
-	return 0;
   }
-
-  // Read max pid.
-  FILE* pid_max_f = fopen("/proc/sys/kernel/pid_max", "r");
-  if (pid_max_f == NULL) {
-  	perror("No pid_max");
-	return -1;
+  closedir(dir);
+  if (numeric_sort) // 如果按照id排序
+  {
+    qsort(processes, count, sizeof(struct ProcessNode *), compare_process);
   }
-  int pid_max;
-  fscanf(pid_max_f, "%d", &pid_max);
-  fclose(pid_max_f);
-
-  char* base_path = "/proc";
-  struct dirent* dent;
-  DIR* srcdir = opendir(base_path);
-  if (srcdir == NULL) {
-  	perror("Open fail");
-	return -1;
+  for (int i = 0; i < count; i++)
+  {
+    struct ProcessNode *node = processes[i];
+    if (node->pid != 1)
+    {
+      struct ProcessNode *parent = find_process_node(root, node->pid);
+      if (parent != NULL)
+      {
+        add_child_process(parent, node);
+      }
+    }
   }
+  return root;
+}
 
-  // Proc array.
-  proc* procs;
-  procs = malloc(sizeof(proc) * (pid_max + 1));
-  pid_t* ppids;
-  ppids = malloc(sizeof(pid_t) * pid_max);
-  proc* p = procs;
-  
-  // Read proc directory.
-  while ((dent = readdir(srcdir)) != NULL) {
-	if (dent->d_name[0] < '0' || dent->d_name[0] > '9') {
-		continue;
-	}
-	// Save the pids.
-	p->pid = atoi(dent->d_name);
-	
-	// Read the stat to get name and ppid.
-	char path[13 + strlen(dent->d_name) + 1], buf[1024];
-	memset(path, 0, sizeof(path));
-	strcat(path, base_path);
-	strcat(path, "/");
-	strcat(path, dent->d_name);
-	strcat(path, "/status");
-	FILE* f = fopen(path, "r");
-	while ((fscanf(f, "%s", buf) != EOF)) {
-		if (strcmp(buf, "Name:") == 0) {
-			fscanf(f, "%s", p->name);
-		}
-		if (strcmp(buf, "PPid:") == 0) {
-			fscanf(f, "%d", &ppids[p - procs]);
-		}
-	}
-	fclose(f);
-	++p;
+int main(int argc, char *argv[])
+{
+  int opt;
+  while ((opt = getopt(argc, argv, "pnhV")) != -1)
+  {
+    switch (opt)
+    {
+    case 'p':
+      show_pids = true;
+      break;
+    case 'n':
+      numeric_sort = true;
+      break;
+    case 'V':
+      printf("my pstree 1.0/n");
+      return 0;
+    case 'h':
+    default:
+      fprintf(stderr, "Usage: %s [-pnhV]\n", argv[0]);
+      fprintf(stderr, "  -p, --show-pids\t\tPrint process PIDs\n");
+      fprintf(stderr, "  -n, --numeric-sort\t\tSort by process ID\n");
+      fprintf(stderr, "  -V, --version\t\t\tPrint version information\n");
+      return 1;
+    }
   }
-  int proc_count = p - procs;
-  printf("Total proc: %d\n", proc_count);
-
-  // Build the tree.
-  for (int i = 0; i < proc_count; ++i) {
-  	procs[i].children = malloc(sizeof(pid_t) * proc_count);
-	procs[i].child_num = 0;
+  struct ProcessNode *root = read_process();
+  if (root == NULL)
+  {
+    fprintf(stderr, "read_processes failed\n") return 1;
   }
-
-  for (int i = 0; i < proc_count; ++i) {
-	for (int j = 0; j < proc_count; ++j) {
-		if (ppids[j] == procs[i].pid) {
-			procs[i].children[procs[i].child_num++] = procs[j].pid;
-		}
-	}
-  }
-
-  for (int i = 0; i < proc_count; ++i) {
-	  if (ppids[i] == 0) {
-	  	PrintTree(&procs[i], procs, 0, pflag);
-	  }
-  }
-  printf("\n");
-
-  closedir(srcdir);
+  print_process_tree(root, 0);
+  release_process_tree(root);
   return 0;
 }
