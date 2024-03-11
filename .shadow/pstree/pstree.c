@@ -7,38 +7,38 @@
 #include <unistd.h>
 #define MAX_PROCESSES 4096
 
-struct ProcesssNode
+typedef struct PProcessNode
 {
   int pid;
   int ppid;
   char name[256];
-  struct ProcessNode *child;
-  struct ProcessNode *brother;
-};
+  struct PProcessNode *child;
+  struct PProcessNode *brother;
+} ProcessNode;
 bool show_pids = false;
 bool numeric_sort = false;
 
-struct ProcessNode *create_process_node(int pid, int ppid, const char *name)
+ProcessNode *create_process_node(int pid, int ppid, const char *name)
 {
-  struct ProcessNode *node = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
+  ProcessNode *node = (ProcessNode *)malloc(sizeof(ProcessNode));
   if (node != NULL)
   {
     node->pid = pid;
     node->ppid = ppid;
-    strcpy(node->name, name, sizeof(node->name));
+    strcpy(node->name, name);
     node->child = NULL;
     node->brother = NULL;
   }
   return node;
 }
 
-struct ProcessNode *find_process_node(struct ProcessNode *root, int pid)
+ProcessNode *find_process_node(ProcessNode *root, int pid)
 {
   if (root == NULL)
     return NULL;
   if (root->pid == pid)
     return root;
-  struct ProcessNode *result = find_process_node(root->child, pid);
+  ProcessNode *result = find_process_node(root->child, pid);
   if (result == NULL)
   {
     result = find_process_node(root->brother, pid);
@@ -46,7 +46,7 @@ struct ProcessNode *find_process_node(struct ProcessNode *root, int pid)
   return result;
 }
 
-void add_child_process(struct ProcessNode *parent, struct ProcessNode *child)
+void add_child_process(ProcessNode *parent, ProcessNode *child)
 {
   if (child != NULL && parent != NULL)
   {
@@ -55,12 +55,12 @@ void add_child_process(struct ProcessNode *parent, struct ProcessNode *child)
   }
 }
 
-void print_process_tree(struct ProcessNode *root, int depth)
+void print_process_tree(ProcessNode *root, int depth)
 {
   if (root == NULL)
     return;
   // 打印当前进程
-  for (int i = 0; i < depth : i++)
+  for (int i = 0; i < depth; i++)
   {
     printf(" ");
   }
@@ -75,12 +75,12 @@ void print_process_tree(struct ProcessNode *root, int depth)
 
 int compare_process(const void *a, const void *b)
 {
-  const struct ProcessNode *pa = *(const struct ProcessNode **)a;
-  const struct ProcessNode *pb = *(const struct ProcessNode **)b;
+  const ProcessNode *pa = *(const ProcessNode **)a;
+  const ProcessNode *pb = *(const ProcessNode **)b;
   return pa->pid - pb->pid;
 }
 
-void release_process_tree(struct ProcessNode *root)
+void release_process_tree(ProcessNode *root)
 {
   if (root == NULL)
     return;
@@ -89,10 +89,10 @@ void release_process_tree(struct ProcessNode *root)
   free(root);
 }
 
-struct ProcessNode *read_process()
+ProcessNode *read_process()
 {
-  struct ProcessNode *root;
-  struct ProcessNode *processes[MAX_PROCESSES];
+  ProcessNode *root = NULL;
+  ProcessNode *processes[MAX_PROCESSES];
   int count = 0;
   DIR *dir = opendir("/proc");
   if (dir == NULL)
@@ -122,10 +122,12 @@ struct ProcessNode *read_process()
         while (fgets(line, sizeof(line), file) != NULL)
         {
           if (sscanf(line, "Name:%s", name) == 1)
-            else if (sscanf(line, "PPid:%d", ppid))
+          {
+          }
+          else if (sscanf(line, "PPid:%d", &ppid))
         }
         fclose(file);
-        struct ProcessNode *node = create_process_node(pid, ppid, name);
+        ProcessNode *node = create_process_node(pid, ppid, name);
         if (node == NULL)
         {
           fprintf(stderr, "create_process_node failed\n");
@@ -142,14 +144,14 @@ struct ProcessNode *read_process()
   closedir(dir);
   if (numeric_sort) // 如果按照id排序
   {
-    qsort(processes, count, sizeof(struct ProcessNode *), compare_process);
+    qsort(processes, count, sizeof(ProcessNode *), compare_process);
   }
   for (int i = 0; i < count; i++)
   {
-    struct ProcessNode *node = processes[i];
+    ProcessNode *node = processes[i];
     if (node->pid != 1)
     {
-      struct ProcessNode *parent = find_process_node(root, node->pid);
+      ProcessNode *parent = find_process_node(root, node->pid);
       if (parent != NULL)
       {
         add_child_process(parent, node);
@@ -184,7 +186,7 @@ int main(int argc, char *argv[])
       return 1;
     }
   }
-  struct ProcessNode *root = read_process();
+  ProcessNode *root = read_process();
   if (root == NULL)
   {
     fprintf(stderr, "read_processes failed\n") return 1;
