@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
       numeric_sort = true;
       break;
     case 'V':
-      printf("my pstree 1.0/n");
+      printf("my pstree 1.0\n");
       return 0;
     case 'h':
     default:
