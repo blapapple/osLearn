@@ -68,7 +68,7 @@ void print_process_tree(ProcessNode *root, int depth)
   {
     printf("(%d)", root->pid);
   }
-  printf("%s/n", root->name);
+  printf("%s\n", root->name);
   print_process_tree(root->child, depth + 1);
   print_process_tree(root->brother, depth);
 }
@@ -153,7 +153,7 @@ ProcessNode *read_process()
     ProcessNode *node = processes[i];
     if (node->pid != 1)
     {
-      ProcessNode *parent = find_process_node(root, node->pid);
+      ProcessNode *parent = find_process_node(root, node->ppid);
       if (parent != NULL)
       {
         add_child_process(parent, node);
